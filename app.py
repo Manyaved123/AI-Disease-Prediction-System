@@ -1,34 +1,46 @@
-import streamlit as st
 import pickle
-import numpy as np
+
+import pandas as pd
+import streamlit as st
+
+SYMPTOMS = {
+    "fever": "Fever",
+    "cough": "Cough",
+    "fatigue": "Fatigue",
+    "headache": "Headache",
+    "sore_throat": "Sore throat",
+    "nausea": "Nausea",
+    "body_pain": "Body pain",
+    "runny_nose": "Runny nose",
+}
 
 # Load trained model
-model = pickle.load(open("model.pkl", "rb"))
+with open("model.pkl", "rb") as f:
+    model = pickle.load(f)
 
 st.title("🧠 AI Disease Prediction System")
-st.write("Select the symptoms you are experiencing:")
+st.write("Tick the symptoms you are experiencing:")
 
-# Symptom inputs
-fever = st.selectbox("Fever", [0,1])
-cough = st.selectbox("Cough", [0,1])
-fatigue = st.selectbox("Fatigue", [0,1])
-headache = st.selectbox("Headache", [0,1])
-sore_throat = st.selectbox("Sore Throat", [0,1])
-nausea = st.selectbox("Nausea", [0,1])
-body_pain = st.selectbox("Body Pain", [0,1])
-runny_nose = st.selectbox("Runny Nose", [0,1])
+cols = st.columns(2)
+selected = {}
+for i, (key, label) in enumerate(SYMPTOMS.items()):
+    selected[key] = int(cols[i % 2].checkbox(label))
 
 if st.button("Predict Disease"):
+    if sum(selected.values()) == 0:
+        st.warning("Please select at least one symptom.")
+    else:
+        # same column names/order the model was trained on
+        input_df = pd.DataFrame([selected])[list(SYMPTOMS)]
+        probs = model.predict_proba(input_df)[0]
+        ranking = sorted(zip(model.classes_, probs), key=lambda p: p[1], reverse=True)
 
-    input_data = np.array([[fever,cough,fatigue,headache,sore_throat,nausea,body_pain,runny_nose]])
+        top, conf = ranking[0]
+        st.success(f"Most likely: **{top}** ({conf * 100:.0f}% confidence)")
 
-    prediction = model.predict(input_data)
-    probability = model.predict_proba(input_data)
-
-    confidence = max(probability[0]) * 100
-
-    st.success(f"Predicted Disease: {prediction[0]}")
-    st.info(f"Confidence Level: {confidence:.2f}%")
+        st.write("All possibilities:")
+        st.bar_chart(pd.DataFrame({"probability": dict(ranking)}))
 
 st.write("---")
-st.write("⚠️ This AI model is for educational purposes only and not a medical diagnosis tool.")
+st.caption("⚠️ Educational demo trained on a small hand-made dataset. "
+           "Not a medical diagnosis tool.")
